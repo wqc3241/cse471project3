@@ -110,6 +110,8 @@ namespace Step8
 
         private ScrollingBackground myBackground;
 
+        int characterSwtich = 1;
+
         protected override void LoadContent()
         {
             // Create a new SpriteBatch, which can be used to draw textures
@@ -209,7 +211,8 @@ namespace Step8
 
             myBackground.Update(elapsed * -10);
             // Move the sprite around
-            Updatecharacter(gameTime);
+            UpdateCharacter(gameTime);
+            UpdateMovement(gameTime);
             Updatebullet(gameTime);
             UpdateEnemies(gameTime);
             CheckForCollision();
@@ -218,7 +221,18 @@ namespace Step8
         }
 
         //Qichao Wang Update
-        void Updatecharacter(GameTime gameTime)
+        void UpdateCharacter(GameTime gameTime)
+        {
+            KeyboardState newState = Keyboard.GetState();
+            if (newState.IsKeyDown(Keys.D1))
+                characterSwtich = 1;
+            else if (newState.IsKeyDown(Keys.D2))
+                characterSwtich = 2;
+            else if (newState.IsKeyDown(Keys.D3))
+                characterSwtich = 3;
+        }
+
+        void UpdateMovement(GameTime gameTime)
         {
 
             // Move the sprite by speed, scaled by elapsed time 
@@ -522,6 +536,21 @@ namespace Step8
 
             spriteBatch.Draw(character, characterPosition, Color.White);
 
+            switch (characterSwtich)
+            {
+                case 1:
+                    character = Content.Load<Texture2D>("bubbles");
+                    bullet = Content.Load<Texture2D>("blueslash");
+                    break;
+                case 2:
+                    character = Content.Load<Texture2D>("buttercup");
+                    bullet = Content.Load<Texture2D>("greenslash");
+                    break;
+                case 3:
+                    character = Content.Load<Texture2D>("blossom");
+                    bullet = Content.Load<Texture2D>("redslash");
+                    break;
+            }
 
             for (int i = 0; i < bulletPosition.Count; i++)
             {
@@ -544,10 +573,6 @@ namespace Step8
             }
             
             spriteBatch.End();
-
-            //spriteBatch.Begin(SpriteSortMode.BackToFront, BlendState.AlphaBlend);
-            //spriteBatch.Draw(texture2, spritePosition2, null, Color.White, 2*RotationAngle, origin2, 1.0f, SpriteEffects.None, 0f);
-            //spriteBatch.End();
 
             base.Draw(gameTime);
         }
