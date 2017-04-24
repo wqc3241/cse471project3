@@ -8,6 +8,8 @@ using Microsoft.Xna.Framework.GamerServices;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
+using ScrollingBackgroundSpace;
+
 
 namespace Step8
 {
@@ -20,6 +22,7 @@ namespace Step8
         SpriteBatch spriteBatch;
         KeyboardState oldState;
         bool endgame = false;
+        bool win = false;
 
         public Game1()
         {
@@ -62,21 +65,26 @@ namespace Step8
 
         Texture2D background;
         Rectangle mainframe;
-        Nullable<Rectangle> sourceBackground = null;
         Vector2 originBackground;
 
-        Texture2D ship;
-        Vector2 shipPosition;
-        Vector2 shipSpeed = new Vector2(0.0f, 0.0f);
-        int shipHeight;
-        int shipWidth;
+        Texture2D character;
+        Vector2 characterPosition;
+        Vector2 characterSpeed = new Vector2(0.0f, 0.0f);
+        int characterHeight;
+        int characterWidth;
 
-        Texture2D rocket;
-        List<Vector3> rocketPosition = new List<Vector3>();
-        List<Vector3> rocketSpeed = new List<Vector3>();
-        int rocketHeight;
-        int rocketWidth;
-        int rocketMax = 99;
+        Texture2D bullet;
+        Texture2D enemyBullet;
+        List<Vector3> bulletPosition = new List<Vector3>();
+        List<Vector3> bulletSpeed = new List<Vector3>();
+        List<Vector3> enemyBulletPosition = new List<Vector3>();
+        List<Vector3> enemyBulletSpeed = new List<Vector3>();
+        int bulletHeight;
+        int bulletWidth;
+        int bulletMax = 99;
+        int enemyBulletHeight;
+        int enemyBulletWidth;
+        int enemyBulletMax = 99;
 
         Texture2D enemy;
         List<Vector2> enemyPosition = new List<Vector2>();
@@ -85,36 +93,32 @@ namespace Step8
         int enemyWidth;
         int totalEnemies = 4;
 
-        SoundEffect soundEffect;
-        SoundEffect music;
+        //Sound effect for Game Music
+        SoundEffect gameMusic;
+        SoundEffectInstance gameMusicInstance;
 
-        SoundEffectInstance soundInstance;
-        SoundEffectInstance musicInstance;
+        //Sound effect for firing bullets
+        SoundEffect bulletFire;
+        SoundEffectInstance bulletFireInstance;
 
-        //Sound effect for Galaga Game Music
-        SoundEffect galagaMusic;
-        SoundEffectInstance galagaMusicInstance;
+        //Sound effect for bullet hits
+        SoundEffect bulletHit;
+        SoundEffectInstance bulletHitInstance;
 
-        //Sound effect for firing rockets
-        SoundEffect rocketFire;
-        SoundEffectInstance rocketFireInstance;
-
-        //Sound effect for rocket hits
-        SoundEffect rocketHit;
-        SoundEffectInstance rocketHitInstance;
-
-        bool fireRocket = false;
+        bool firebullet = false;
         bool hitTarget = false;
 
-        bool collide = false;
+        private ScrollingBackground myBackground;
 
         protected override void LoadContent()
         {
             // Create a new SpriteBatch, which can be used to draw textures
 
             spriteBatch = new SpriteBatch(GraphicsDevice);
+            myBackground = new ScrollingBackground();
+            background = Content.Load<Texture2D>("background1");
+            myBackground.Load(GraphicsDevice, background);
 
-            background = Content.Load<Texture2D>("background");
             mainframe = new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
             originBackground = new Vector2(mainframe.X, mainframe.Y);
 
@@ -122,36 +126,33 @@ namespace Step8
             levelFont = Content.Load<SpriteFont>("SpriteFont1");
             endFont = Content.Load<SpriteFont>("SpriteFont2");
 
-            ship = Content.Load<Texture2D>("Galaga_ship");
-            rocket = Content.Load<Texture2D>("rocket");
-            enemy = Content.Load<Texture2D>("Enemy_Ship");
+            character = Content.Load<Texture2D>("blossom");
+            bullet = Content.Load<Texture2D>("redslash");
 
-            soundEffect = Content.Load<SoundEffect>("Swords_Collide-Sound");
-            music = Content.Load<SoundEffect>("siren");
+            enemy = Content.Load<Texture2D>("mojo1");
+            enemyBullet = Content.Load<Texture2D>("wave1");
+ 
+            //Initialize Game Music
+            gameMusic = Content.Load<SoundEffect>("game");
+            gameMusicInstance = gameMusic.CreateInstance();
+            //Initialize bullet Fire Sound Effect
+            bulletFire = Content.Load<SoundEffect>("RocketSound");
+            bulletFireInstance = bulletFire.CreateInstance();
+            //Initialize bullet Hit Sound Effect
+            bulletHit = Content.Load<SoundEffect>("EnemyExplosion");
+            bulletHitInstance = bulletHit.CreateInstance();
 
-            soundInstance = soundEffect.CreateInstance();
-            musicInstance = music.CreateInstance();
+            characterHeight = character.Bounds.Height;
+            characterWidth = character.Bounds.Width;
 
-            //Initialize Galaga Music
-            galagaMusic = Content.Load<SoundEffect>("Galaga");
-            galagaMusicInstance = galagaMusic.CreateInstance();
-            //Initialize Rocket Fire Sound Effect
-            rocketFire = Content.Load<SoundEffect>("RocketSound");
-            rocketFireInstance = rocketFire.CreateInstance();
-            //Initialize Rocket Hit Sound Effect
-            rocketHit = Content.Load<SoundEffect>("RocketHit");
-            rocketHitInstance = rocketHit.CreateInstance();
+            characterPosition.X = 10;
+            characterPosition.Y = graphics.GraphicsDevice.Viewport.Height/2-characterHeight;
 
-            //musicInstance.IsLooped = true;
+            bulletHeight = bullet.Bounds.Height;
+            bulletWidth = bullet.Bounds.Width;
 
-            shipHeight = ship.Bounds.Height;
-            shipWidth = ship.Bounds.Width;
-
-            shipPosition.X = 10;
-            shipPosition.Y = graphics.GraphicsDevice.Viewport.Height/2-shipHeight;
-
-            rocketHeight = rocket.Bounds.Height;
-            rocketWidth = rocket.Bounds.Width;
+            enemyBulletHeight = enemyBullet.Bounds.Height;
+            enemyBulletWidth = enemyBullet.Bounds.Width;
 
             enemyHeight = enemy.Bounds.Height;
             enemyWidth = enemy.Bounds.Width;
@@ -186,36 +187,38 @@ namespace Step8
 
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
                 this.Exit();
-            //Play rocket fire sound
-            if (fireRocket)
+            //Play bullet fire sound
+            if (firebullet)
             {
-                rocketFireInstance.Play();
-                fireRocket = false;
+                bulletFireInstance.Play();
+                firebullet = false;
             }
-            //Play rocket hit target sound
+            //Play bullet hit target sound
             if (hitTarget)
             {
-                rocketHitInstance.Play();
+                bulletHitInstance.Play();
                 hitTarget = false;
             }
             
            
-            if (galagaMusicInstance.State == SoundState.Stopped)
-                galagaMusicInstance.Play();
+            if (gameMusicInstance.State == SoundState.Stopped)
+                gameMusicInstance.Play();
 
             // The time since Update was called last.
             float elapsed = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            myBackground.Update(elapsed * -10);
             // Move the sprite around
-            UpdateShip(gameTime, ref shipPosition, ref shipSpeed);
-            UpdateRocket(gameTime, ref rocketPosition, ref rocketSpeed);
-            UpdateEnemies(gameTime, ref enemyPosition, ref enemySpeed);
+            Updatecharacter(gameTime);
+            Updatebullet(gameTime);
+            UpdateEnemies(gameTime);
             CheckForCollision();
 
             base.Update(gameTime);
         }
 
-        void UpdateShip(GameTime gameTime, ref Vector2 shipPosition, ref Vector2 shipSpeed)
+        //Qichao Wang Update
+        void Updatecharacter(GameTime gameTime)
         {
 
             // Move the sprite by speed, scaled by elapsed time 
@@ -223,131 +226,122 @@ namespace Step8
 
             if (newState.IsKeyDown(Keys.Up) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Left) && oldState.IsKeyUp(Keys.Right))
             {
-                shipSpeed.Y = -200.0f;
+                characterSpeed.Y = -200.0f;
             }
 
             else if (newState.IsKeyDown(Keys.Down) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Left) && oldState.IsKeyUp(Keys.Right))
             {
-                shipSpeed.Y = 200.0f;
+                characterSpeed.Y = 200.0f;
             }
             else if (newState.IsKeyDown(Keys.Left) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Right))
             {
-                shipSpeed.X = -200.0f;
+                characterSpeed.X = -200.0f;
             }
             else if (newState.IsKeyDown(Keys.Right) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Left) && oldState.IsKeyUp(Keys.Up))
             {
-                shipSpeed.X = 200.0f;
+                characterSpeed.X = 200.0f;
             }
             else if (newState.IsKeyDown(Keys.Down) && newState.IsKeyDown(Keys.Left) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Right))
             {
-                shipSpeed.Y = 120.0f;
-                shipSpeed.X = -120.0f;
+                characterSpeed.Y = 120.0f;
+                characterSpeed.X = -120.0f;
             }
 
             else if (newState.IsKeyDown(Keys.Down) && newState.IsKeyDown(Keys.Right) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Left))
             {
-                shipSpeed.Y = 120.0f;
-                shipSpeed.X = 120.0f;
+                characterSpeed.Y = 120.0f;
+                characterSpeed.X = 120.0f;
             }
             else if (newState.IsKeyDown(Keys.Up) && newState.IsKeyDown(Keys.Left) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Right))
             {
-                shipSpeed.Y = -120.0f;
-                shipSpeed.X = -120.0f;
+                characterSpeed.Y = -120.0f;
+                characterSpeed.X = -120.0f;
             }
             else if (newState.IsKeyDown(Keys.Up) && newState.IsKeyDown(Keys.Right) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Left))
             {
-                shipSpeed.Y = -120.0f;
-                shipSpeed.X = 120.0f;
+                characterSpeed.Y = -120.0f;
+                characterSpeed.X = 120.0f;
             }
             else
             {
-                shipSpeed.Y = 0.0f;
-                shipSpeed.X = 0.0f;
+                characterSpeed.Y = 0.0f;
+                characterSpeed.X = 0.0f;
             }
 
-            shipPosition += shipSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            characterPosition += characterSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            int MaxX = graphics.GraphicsDevice.Viewport.Width - ship.Width;
+            int MaxX = graphics.GraphicsDevice.Viewport.Width - character.Width;
             int MinX = 0;
-            int MaxY = graphics.GraphicsDevice.Viewport.Height - ship.Height;
+            int MaxY = graphics.GraphicsDevice.Viewport.Height - character.Height;
             int MinY = 0;
 
             // Check for bounce 
 
-            if (shipPosition.X > MaxX)
+            if (characterPosition.X > MaxX)
             {
 
-                shipSpeed.X = 0;
-                shipPosition.X = MaxX;
+                characterSpeed.X = 0;
+                characterPosition.X = MaxX;
             }
 
-            else if (shipPosition.X < MinX)
+            else if (characterPosition.X < MinX)
             {
 
-                shipSpeed.X = 0;
-                shipPosition.X = MinX;
+                characterSpeed.X = 0;
+                characterPosition.X = MinX;
             }
 
-            else if (shipPosition.Y > MaxY)
+            else if (characterPosition.Y > MaxY)
             {
-                shipSpeed.Y = 0;
-                shipPosition.Y = MaxY;
+                characterSpeed.Y = 0;
+                characterPosition.Y = MaxY;
             }
-            else if (shipPosition.Y < MinY)
+            else if (characterPosition.Y < MinY)
             {
-                shipSpeed.Y = 0;
-                shipPosition.Y = MinY;
+                characterSpeed.Y = 0;
+                characterPosition.Y = MinY;
             }
 
         }
 
-        void UpdateRocket(GameTime gameTime, ref List<Vector3> rocketPosition, ref List<Vector3> rocketSpeed)
+        void Updatebullet(GameTime gameTime)
         {
             int MaxX = graphics.GraphicsDevice.Viewport.Width;
-            int MinX = 0;
-            int MaxY = graphics.GraphicsDevice.Viewport.Height;
-            int MinY = 0;
 
-
-            // Move the sprite by speed, scaled by elapsed time 
             KeyboardState newState = Keyboard.GetState();
 
             if (newState.IsKeyDown(Keys.Space) && oldState.IsKeyUp(Keys.Space))
             {
-                //Stop any current rocket fire sound
-                if (rocketFireInstance.State == SoundState.Playing)
-                    rocketFireInstance.Stop();
-                //Tells update to play rocket sound(much faster than playing in keypress!)
-                fireRocket = true;
+                //Stop any current bullet fire sound
+                if (bulletFireInstance.State == SoundState.Playing)
+                    bulletFireInstance.Stop();
+                //Tells update to play bullet sound(much faster than playing in keypress!)
+                firebullet = true;
             
 
-                if (rocketPosition.Count < rocketMax)
+                if (bulletPosition.Count < bulletMax)
                 {
-                    rocketPosition.Add(new Vector3(shipPosition.X + shipWidth/2 - rocketWidth/2, shipPosition.Y, 0));
-                    rocketSpeed.Add(new Vector3(0, -500.0f, 0));
+                    bulletPosition.Add(new Vector3(characterPosition.X + characterWidth, characterPosition.Y + bulletHeight, 0));
+                    bulletSpeed.Add(new Vector3(500.0f, 0, 0));
                 }
             }
 
 
-            for (int i = 0; i < rocketPosition.Count; i++)
+            for (int i = 0; i < bulletPosition.Count; i++)
             {
-                rocketPosition[i] += rocketSpeed[i] * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                bulletPosition[i] += bulletSpeed[i] * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-                if (rocketPosition[i].Y > MaxY)
+                if (bulletPosition[i].X > MaxX)
                 {
-                    rocketPosition.RemoveAt(i);
-                    rocketSpeed.RemoveAt(i);
+                    bulletPosition.RemoveAt(i);
+                    bulletSpeed.RemoveAt(i);
                 }
-                else if (rocketPosition[i].Y < MinY)
-                {
-                    rocketPosition.RemoveAt(i);
-                    rocketSpeed.RemoveAt(i);
-                }
+               
             }
             oldState = newState;
         }
 
-        void UpdateEnemies(GameTime gameTime, ref List<Vector2> enemyPosition, ref List<Vector2> enemySpeed)
+        void UpdateEnemies(GameTime gameTime)
         {
             int MaxY = graphics.GraphicsDevice.Viewport.Height;
             int MinY = 0;
@@ -361,7 +355,7 @@ namespace Step8
                     for (int j = 0; j < totalEnemies; j++)
                     {
                         enemySpeed[j] *= -1;
-                        if (enemyPosition[j].X < shipPosition.X)
+                        if (enemyPosition[j].X < characterPosition.X)
                         {
                             enemyPosition[j] -= enemyShiftX;
                         }
@@ -376,7 +370,7 @@ namespace Step8
                     for (int j = 0; j < totalEnemies; j++)
                     {
                         enemySpeed[j] *= -1;
-                        if (enemyPosition[j].X < shipPosition.X)
+                        if (enemyPosition[j].X < characterPosition.X)
                         {
                             enemyPosition[j] += enemyShiftX;
                         }
@@ -398,21 +392,21 @@ namespace Step8
 
         void AddEnemyShot(Vector2 enemyPosition)
         {
-            if (rocketFireInstance.State == SoundState.Playing)
-                rocketFireInstance.Stop();
-            //Tells update to play rocket sound(much faster than playing in keypress!)
-            fireRocket = true;
+            if (bulletFireInstance.State == SoundState.Playing)
+                bulletFireInstance.Stop();
+            //Tells update to play bullet sound(much faster than playing in keypress!)
+            firebullet = true;
 
-            rocketPosition.Add(new Vector3(enemyPosition.X + enemyWidth / 2 - rocketWidth / 2, enemyPosition.Y + (1.5f*enemyHeight), -1));
-            rocketSpeed.Add(new Vector3(0, 250.0f, 0));
+            enemyBulletPosition.Add(new Vector3(enemyPosition.X + enemyWidth / 2 - bulletWidth / 2, enemyPosition.Y + (1.5f*enemyHeight), -1));
+            enemyBulletSpeed.Add(new Vector3(0, 250.0f, 0));
         }
 
 
         void CheckForCollision()
         {
             List<BoundingBox> enemyBoxes = new List<BoundingBox>();
-            List<BoundingBox> rocketBoxes = new List<BoundingBox>();
-            List<BoundingBox> enemyrocketBoxes = new List<BoundingBox>();
+            List<BoundingBox> bulletBoxes = new List<BoundingBox>();
+            List<BoundingBox> enemybulletBoxes = new List<BoundingBox>();
             List<BoundingBox> spaceCraftBoxes = new List<BoundingBox>();
             bool round_cleared = false;
 
@@ -420,37 +414,37 @@ namespace Step8
             {
                 enemyBoxes.Add(new BoundingBox(new Vector3(enemyPosition[i].X - (enemyWidth / 2), enemyPosition[i].Y - (enemyHeight / 2), 0), new Vector3(enemyPosition[i].X + (enemyWidth / 2), enemyPosition[i].Y + (enemyHeight / 2), 0)));
             }
-            int userRockets = 0;
-            int enemyRockets = 0;
-            for (int j = 0; j < rocketPosition.Count; j++)
+            int userbullets = 0;
+            int enemybullets = 0;
+            for (int j = 0; j < bulletPosition.Count; j++)
             {
-                if (rocketPosition[j].Z == 0)
+                if (bulletPosition[j].Z == 0)
                 {
-                    rocketBoxes.Add(new BoundingBox(new Vector3(rocketPosition[j].X - (rocketWidth / 2), rocketPosition[j].Y - (rocketHeight / 2), 0), new Vector3(rocketPosition[j].X + (rocketWidth / 2), rocketPosition[j].Y + (rocketHeight / 2), 0)));
-                    userRockets++;
+                    bulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
+                    userbullets++;
                 }
                 else
                 {
-                    enemyrocketBoxes.Add(new BoundingBox(new Vector3(rocketPosition[j].X - (rocketWidth / 2), rocketPosition[j].Y - (rocketHeight / 2), 0), new Vector3(rocketPosition[j].X + (rocketWidth / 2), rocketPosition[j].Y + (rocketHeight / 2), 0)));
-                    enemyRockets++;
+                    enemybulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
+                    enemybullets++;
                 }
             }
 
             for (int i = 0; i < totalEnemies; i++)
             {
-                for (int j = 0; j < userRockets; j++)
+                for (int j = 0; j < userbullets; j++)
                 {
-                    if (!round_cleared && enemyBoxes[i].Intersects(rocketBoxes[j]))
+                    if (!round_cleared && enemyBoxes[i].Intersects(bulletBoxes[j]))
                     {
-                        if (rocketHitInstance.State == SoundState.Playing)
-                            rocketHitInstance.Stop();
+                        if (bulletHitInstance.State == SoundState.Playing)
+                            bulletHitInstance.Stop();
                         hitTarget = true;
-                        //rocketHitInstance.Play();
+                        bulletHitInstance.Play();
 
                         enemyPosition.RemoveAt(i);
                         enemySpeed.RemoveAt(i);
-                        rocketPosition.RemoveAt(j);
-                        rocketSpeed.RemoveAt(j);
+                        bulletPosition.RemoveAt(j);
+                        bulletSpeed.RemoveAt(j);
                         totalEnemies--;
 
                         // defeated all the enemies
@@ -475,10 +469,10 @@ namespace Step8
                     }
                 }
             }
-            BoundingBox shipBox = new BoundingBox(new Vector3(shipPosition.X - (shipWidth / 2), shipPosition.Y - (shipHeight / 2), 0), new Vector3(shipPosition.X + (shipWidth / 2), shipPosition.Y + (shipHeight / 2), 0));
-            for (int i = 0; i < enemyRockets; i++)
+            BoundingBox characterBox = new BoundingBox(new Vector3(characterPosition.X - (characterWidth / 2), characterPosition.Y - (characterHeight / 2), 0), new Vector3(characterPosition.X + (characterWidth / 2), characterPosition.Y + (characterHeight / 2), 0));
+            for (int i = 0; i < enemybullets; i++)
             {
-                if (shipBox.Intersects(enemyrocketBoxes[i]))
+                if (characterBox.Intersects(enemybulletBoxes[i]))
                 {
                     // TODO END OF GAME!!
                     endgame = true;
@@ -488,45 +482,14 @@ namespace Step8
             {
                 for (int i = 0; i < totalEnemies; i++)
                 {
-                    if (shipBox.Intersects(enemyBoxes[i]))
+                    if (characterBox.Intersects(enemyBoxes[i]))
                     {
                         // TODO END OF GAME!!
                         endgame = true;
                     }
                 }
             }
-                
-
-
-            //BoundingBox bb1 = new BoundingBox(new Vector3(spritePosition1.X - (sprite1Width / 2), spritePosition1.Y - (sprite1Height / 2), 0), new Vector3(spritePosition1.X + (sprite1Width / 2), spritePosition1.Y + (sprite1Height / 2), 0));
-
-            //BoundingBox bb2 = new BoundingBox(new Vector3(spritePosition2.X - (sprite2Width / 2), spritePosition2.Y - (sprite2Height / 2), 0), new Vector3(spritePosition2.X + (sprite2Width / 2), spritePosition2.Y + (sprite2Height / 2), 0));
-
-            //if (bb1.Intersects(bb2))
-            //{
-            //    spriteSpeed1.X *= -1;
-            //    spriteSpeed1.Y *= -1;
-
-            //    spriteSpeed2.X *= -1;
-              //  spriteSpeed2.Y *= -1;
-
-                //score++;
-
-                //collide = true;
-
-                //musicInstance.Stop();
-                
-                //soundInstance.Play();
-
-            //}
-            //else
-            //{
-              //  if(musicInstance.State != SoundState.Playing && soundInstance.State != SoundState.Playing && collide)
-                //{
-                  //  musicInstance.Play();
-                    //collide = false;
-               // }
-            //}
+              
         }
 
         /// <summary>
@@ -539,28 +502,31 @@ namespace Step8
             
             // Draw the sprite
            
-            spriteBatch.Begin(SpriteSortMode.BackToFront, BlendState.AlphaBlend);
-            
-            spriteBatch.Draw(background, mainframe, sourceBackground,  Color.White, 0,originBackground,SpriteEffects.None, 1);
-            //spriteBatch.Draw(background,mainframe,Color.White);
-            
-            
-            spriteBatch.DrawString(scoreFont, "SCORE " + score.ToString(), new Vector2(10, 10), Color.White);
+            spriteBatch.Begin();
 
-            spriteBatch.DrawString(levelFont, "LEVEL " + level.ToString(), new Vector2(510, 10), Color.White);
+            //spriteBatch.Draw(background, mainframe, sourceBackground,  Color.White, 0,originBackground,SpriteEffects.None, 1);
+            //spriteBatch.Draw(background,mainframe,Color.White);
+            myBackground.Draw(spriteBatch);
+            
+            spriteBatch.DrawString(scoreFont, "SCORE " + score.ToString(), new Vector2(10, 10), Color.Red);
+
+            spriteBatch.DrawString(levelFont, "LEVEL " + level.ToString(), new Vector2(GraphicsDevice.Viewport.Width-200, 10), Color.Red);
 
             if (endgame)
             {
-                spriteBatch.DrawString(endFont, "GAME OVER", new Vector2(30, 250), Color.White);
+                if (win)
+                    spriteBatch.DrawString(endFont, "You Win", new Vector2(GraphicsDevice.Viewport.Width/4+30, 300), Color.Red);
+                else
+                    spriteBatch.DrawString(endFont, "GAME OVER", new Vector2(GraphicsDevice.Viewport.Width / 4 + 30, 300), Color.Red);
             }
 
-            spriteBatch.Draw(ship, shipPosition, Color.White);
+            spriteBatch.Draw(character, characterPosition, Color.White);
 
 
-            for (int i = 0; i < rocketPosition.Count; i++)
+            for (int i = 0; i < bulletPosition.Count; i++)
             {
-                Vector2 temp = new Vector2(rocketPosition[i].X, rocketPosition[i].Y);
-                spriteBatch.Draw(rocket, temp, Color.White);
+                Vector2 temp = new Vector2(bulletPosition[i].X, bulletPosition[i].Y);
+                spriteBatch.Draw(bullet, temp, Color.White);
             }
 
             for (int i = 0; i < totalEnemies; i++)
@@ -570,11 +536,11 @@ namespace Step8
 
             if (level == 4)
             {
-                enemy = Content.Load<Texture2D>("Enemy_Ship2");
+                enemy = Content.Load<Texture2D>("Enemy_character2");
             }
             if (level == 7)
             {
-                enemy = Content.Load<Texture2D>("Enemy_Ship3");
+                enemy = Content.Load<Texture2D>("Enemy_character3");
             }
             
             spriteBatch.End();
