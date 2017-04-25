@@ -27,7 +27,6 @@ namespace Step8
         public Game1()
         {
             graphics = new GraphicsDeviceManager(this);
-            // change back to 1000!
             graphics.PreferredBackBufferHeight = 740;
             graphics.PreferredBackBufferWidth = 1280;
             Content.RootDirectory = "Content";
@@ -63,9 +62,7 @@ namespace Step8
 
         SpriteFont endFont;
 
-        Texture2D background;
         Rectangle mainframe;
-        Vector2 originBackground;
 
         Texture2D character;
         Vector2 characterPosition;
@@ -84,7 +81,6 @@ namespace Step8
         int bulletMax = 99;
         int enemyBulletHeight;
         int enemyBulletWidth;
-        int enemyBulletMax = 99;
 
         Texture2D enemy;
         List<Vector2> enemyPosition = new List<Vector2>();
@@ -97,6 +93,9 @@ namespace Step8
         SoundEffect gameMusic;
         SoundEffectInstance gameMusicInstance;
 
+        SoundEffect menuMusic;
+        SoundEffectInstance menuMusicInstance;
+
         //Sound effect for firing bullets
         SoundEffect bulletFire;
         SoundEffectInstance bulletFireInstance;
@@ -108,21 +107,33 @@ namespace Step8
         bool firebullet = false;
         bool hitTarget = false;
 
-        private ScrollingBackground myBackground;
+        Scrolling myBackground;
+        Scrolling myBackground2;
 
         int characterSwtich = 1;
+
+        enum GameState
+        {
+            Menu,
+            Playing,
+            Ending
+        }
+        GameState currentState = GameState.Menu;
+        cButton btnPlay;
 
         protected override void LoadContent()
         {
             // Create a new SpriteBatch, which can be used to draw textures
 
             spriteBatch = new SpriteBatch(GraphicsDevice);
-            myBackground = new ScrollingBackground();
-            background = Content.Load<Texture2D>("background1");
-            myBackground.Load(GraphicsDevice, background);
+            myBackground = new Scrolling(Content.Load<Texture2D>("background1"), new Rectangle(0, 0, 1878, 740));
+            myBackground2 = new Scrolling(Content.Load<Texture2D>("background1"), new Rectangle(1878, 0, 1878, 740));
+
+            IsMouseVisible = true;
+            btnPlay = new cButton(Content.Load<Texture2D>("Button"), graphics.GraphicsDevice);
+            btnPlay.setPosition(new Vector2(GraphicsDevice.Viewport.Width / 2 - btnPlay.size.X, GraphicsDevice.Viewport.Height / 2));
 
             mainframe = new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
-            originBackground = new Vector2(mainframe.X, mainframe.Y);
 
             scoreFont = Content.Load<SpriteFont>("SpriteFont1");
             levelFont = Content.Load<SpriteFont>("SpriteFont1");
@@ -133,7 +144,7 @@ namespace Step8
 
             enemy = Content.Load<Texture2D>("mojo1");
             enemyBullet = Content.Load<Texture2D>("wave1");
- 
+
             //Initialize Game Music
             gameMusic = Content.Load<SoundEffect>("game");
             gameMusicInstance = gameMusic.CreateInstance();
@@ -144,11 +155,14 @@ namespace Step8
             bulletHit = Content.Load<SoundEffect>("EnemyExplosion");
             bulletHitInstance = bulletHit.CreateInstance();
 
+            menuMusic = Content.Load<SoundEffect>("start");
+            menuMusicInstance = menuMusic.CreateInstance();
+
             characterHeight = character.Bounds.Height;
             characterWidth = character.Bounds.Width;
 
             characterPosition.X = 10;
-            characterPosition.Y = graphics.GraphicsDevice.Viewport.Height/2-characterHeight;
+            characterPosition.Y = graphics.GraphicsDevice.Viewport.Height / 2 - characterHeight;
 
             bulletHeight = bullet.Bounds.Height;
             bulletWidth = bullet.Bounds.Width;
@@ -163,8 +177,8 @@ namespace Step8
 
             for (int i = 0; i < totalEnemies; i++)
             {
-                enemyPosition.Add(new Vector2(0, enemySpacing * i / 2));
-                enemySpeed.Add(new Vector2(50.0f, 0));
+                enemyPosition.Add(new Vector2(GraphicsDevice.Viewport.Width, (enemySpacing * (i + 1)) / 2));
+                enemySpeed.Add(new Vector2(-50.0f, 0));
             }
 
         }
@@ -189,34 +203,82 @@ namespace Step8
 
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
                 this.Exit();
-            //Play bullet fire sound
-            if (firebullet)
+
+            MouseState mouse = Mouse.GetState();
+            switch (currentState)
             {
-                bulletFireInstance.Play();
-                firebullet = false;
+                case GameState.Menu:
+                    if (btnPlay.isClicked == true) currentState = GameState.Playing;
+                    btnPlay.Update(mouse);
+                    break;
+
+                case GameState.Playing:
+                    win = false;
+                    btnPlay.isClicked = false;
+                    if (endgame)
+                    {
+                        currentState = GameState.Ending;
+                        btnPlay.isClicked = false;
+                    }
+                    //Play bullet fire sound
+                    if (firebullet)
+                    {
+                        bulletFireInstance.Play();
+                        firebullet = false;
+                    }
+                    //Play bullet hit target sound
+                    if (hitTarget)
+                    {
+                        bulletHitInstance.Play();
+                        hitTarget = false;
+                    }
+
+                    if (gameMusicInstance.State == SoundState.Stopped)
+                        gameMusicInstance.Play();
+
+                    // The time since Update was called last.
+                    float elapsed = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+                    if (myBackground.rectangle.X + myBackground.texture.Width <= 0)
+                        myBackground.rectangle.X = myBackground2.rectangle.X + myBackground2.texture.Width;
+                    if (myBackground2.rectangle.X + myBackground2.texture.Width <= 0)
+                        myBackground2.rectangle.X = myBackground.rectangle.X + myBackground.texture.Width;
+
+                    myBackground.Update();
+                    myBackground2.Update();
+
+                    // Move the sprite around
+                    UpdateCharacter(gameTime);
+                    UpdateMovement(gameTime);
+                    Updatebullet(gameTime);
+                    UpdateEnemies(gameTime);
+                    CheckForCollision();
+                    break;
+
+                case GameState.Ending:
+                    if (btnPlay.isClicked == true)
+                    {
+                        currentState = GameState.Playing;
+                        endgame = false;
+                        CleanAll();
+
+                        spriteBatch = new SpriteBatch(GraphicsDevice);
+                        myBackground = new Scrolling(Content.Load<Texture2D>("background1"), new Rectangle(0, 0, 1878, 740));
+                        myBackground2 = new Scrolling(Content.Load<Texture2D>("background1"), new Rectangle(1878, 0, 1878, 740));
+                        characterPosition.X = 10;
+                        characterPosition.Y = graphics.GraphicsDevice.Viewport.Height / 2 - characterHeight;
+
+                        int enemySpacing = graphics.GraphicsDevice.Viewport.Width / totalEnemies;
+
+                        for (int i = 0; i < totalEnemies; i++)
+                        {
+                            enemyPosition.Add(new Vector2(GraphicsDevice.Viewport.Width, (enemySpacing * (i + 1)) / 2));
+                            enemySpeed.Add(new Vector2(-50.0f, 0));
+                        }
+                    }
+                    btnPlay.Update(mouse);
+                    break;
             }
-            //Play bullet hit target sound
-            if (hitTarget)
-            {
-                bulletHitInstance.Play();
-                hitTarget = false;
-            }
-            
-           
-            if (gameMusicInstance.State == SoundState.Stopped)
-                gameMusicInstance.Play();
-
-            // The time since Update was called last.
-            float elapsed = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            myBackground.Update(elapsed * -10);
-            // Move the sprite around
-            UpdateCharacter(gameTime);
-            UpdateMovement(gameTime);
-            Updatebullet(gameTime);
-            UpdateEnemies(gameTime);
-            CheckForCollision();
-
             base.Update(gameTime);
         }
 
@@ -331,7 +393,6 @@ namespace Step8
                     bulletFireInstance.Stop();
                 //Tells update to play bullet sound(much faster than playing in keypress!)
                 firebullet = true;
-            
 
                 if (bulletPosition.Count < bulletMax)
                 {
@@ -339,7 +400,6 @@ namespace Step8
                     bulletSpeed.Add(new Vector3(500.0f, 0, 0));
                 }
             }
-
 
             for (int i = 0; i < bulletPosition.Count; i++)
             {
@@ -350,8 +410,19 @@ namespace Step8
                     bulletPosition.RemoveAt(i);
                     bulletSpeed.RemoveAt(i);
                 }
-               
             }
+
+            for (int i = 0; i < enemyBulletPosition.Count; i++)
+            {
+                enemyBulletPosition[i] += enemyBulletSpeed[i] * (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+                if (enemyBulletPosition[i].X < 0)
+                {
+                    enemyBulletPosition.RemoveAt(i);
+                    enemyBulletSpeed.RemoveAt(i);
+                }
+            }
+
             oldState = newState;
         }
 
@@ -360,9 +431,13 @@ namespace Step8
             int MaxY = graphics.GraphicsDevice.Viewport.Height;
             int MinY = 0;
             Vector2 enemyShiftX = new Vector2(50.0f, 0.0f);
-
+            Vector2 enemyReset = new Vector2(GraphicsDevice.Viewport.Width, 0);
             for (int i = 0; i < totalEnemies; i++)
             {
+                if (enemyPosition[i].X < 0)
+                {
+                    enemyPosition[i] += enemyReset;
+                }
                 enemyPosition[i] += enemySpeed[i] * (float)gameTime.ElapsedGameTime.TotalSeconds;
                 if (enemyPosition[i].Y > MaxY - enemyHeight)
                 {
@@ -373,11 +448,7 @@ namespace Step8
                         {
                             enemyPosition[j] -= enemyShiftX;
                         }
-                        else
-                        {
-                            endgame = true;
-                        }
-                    } 
+                    }
                 }
                 else if (enemyPosition[i].Y < MinY)
                 {
@@ -388,14 +459,10 @@ namespace Step8
                         {
                             enemyPosition[j] += enemyShiftX;
                         }
-                        else
-                        {
-                            endgame = true;
-                        }
                     }
                 }
             }
-            if ( next_enemy_shot > 400 / level )
+            if (next_enemy_shot > 400 / level)
             {
                 Random rnd = new Random();
                 AddEnemyShot(enemyPosition[rnd.Next(0, totalEnemies)]);
@@ -411,8 +478,8 @@ namespace Step8
             //Tells update to play bullet sound(much faster than playing in keypress!)
             firebullet = true;
 
-            enemyBulletPosition.Add(new Vector3(enemyPosition.X + enemyWidth / 2 - bulletWidth / 2, enemyPosition.Y + (1.5f*enemyHeight), -1));
-            enemyBulletSpeed.Add(new Vector3(0, 250.0f, 0));
+            enemyBulletPosition.Add(new Vector3(enemyPosition.X - enemyWidth / 2 - bulletWidth, enemyPosition.Y + (enemyHeight / 3), 0));
+            enemyBulletSpeed.Add(new Vector3(-250.0f, 0, 0));
         }
 
 
@@ -432,16 +499,14 @@ namespace Step8
             int enemybullets = 0;
             for (int j = 0; j < bulletPosition.Count; j++)
             {
-                if (bulletPosition[j].Z == 0)
-                {
-                    bulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
-                    userbullets++;
-                }
-                else
-                {
-                    enemybulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
-                    enemybullets++;
-                }
+                bulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
+                userbullets++;
+            }
+
+            for (int h = 0; h < enemyBulletPosition.Count; h++)
+            {
+                enemybulletBoxes.Add(new BoundingBox(new Vector3(enemyBulletPosition[h].X - (enemyBulletWidth / 2), enemyBulletPosition[h].Y - (enemyBulletHeight / 2), 0), new Vector3(enemyBulletPosition[h].X + (enemyBulletWidth / 2), enemyBulletPosition[h].Y + (enemyBulletHeight / 2), 0)));
+                enemybullets++;
             }
 
             for (int i = 0; i < totalEnemies; i++)
@@ -470,11 +535,11 @@ namespace Step8
                             // add more enemies once you beat the level
                             totalEnemies = 4;
 
-                            int enemySpacing = graphics.GraphicsDevice.Viewport.Width / totalEnemies;
+                            int enemySpacing = graphics.GraphicsDevice.Viewport.Height / totalEnemies;
 
                             for (int k = 0; k < totalEnemies; k++)
                             {
-                                enemyPosition.Add(new Vector2(enemySpacing * k, 0));
+                                enemyPosition.Add(new Vector2(GraphicsDevice.Viewport.Width, (enemySpacing * (k + 1)) / 2));
                                 enemySpeed.Add(new Vector2(-50.0f * (level / 1.8f), 0));
                             }
                         }
@@ -503,7 +568,29 @@ namespace Step8
                     }
                 }
             }
-              
+
+        }
+
+        void CleanAll()
+        {
+            score = 0;
+            level = 1;
+            next_enemy_shot = 0;
+
+            characterSpeed = new Vector2(0.0f, 0.0f);
+            bulletPosition = new List<Vector3>();
+            bulletSpeed = new List<Vector3>();
+            enemyBulletPosition = new List<Vector3>();
+            enemyBulletSpeed = new List<Vector3>();
+
+
+            enemyPosition = new List<Vector2>();
+            enemySpeed = new List<Vector2>();
+
+            totalEnemies = 4;
+
+            firebullet = false;
+            hitTarget = false;
         }
 
         /// <summary>
@@ -513,65 +600,117 @@ namespace Step8
         protected override void Draw(GameTime gameTime)
         {
             graphics.GraphicsDevice.Clear(Color.CornflowerBlue);
-            
+
             // Draw the sprite
-           
+
             spriteBatch.Begin();
 
-            //spriteBatch.Draw(background, mainframe, sourceBackground,  Color.White, 0,originBackground,SpriteEffects.None, 1);
-            //spriteBatch.Draw(background,mainframe,Color.White);
-            myBackground.Draw(spriteBatch);
-            
-            spriteBatch.DrawString(scoreFont, "SCORE " + score.ToString(), new Vector2(10, 10), Color.Red);
-
-            spriteBatch.DrawString(levelFont, "LEVEL " + level.ToString(), new Vector2(GraphicsDevice.Viewport.Width-200, 10), Color.Red);
-
-            if (endgame)
+            switch (currentState)
             {
-                if (win)
-                    spriteBatch.DrawString(endFont, "You Win", new Vector2(GraphicsDevice.Viewport.Width/4+30, 300), Color.Red);
-                else
-                    spriteBatch.DrawString(endFont, "GAME OVER", new Vector2(GraphicsDevice.Viewport.Width / 4 + 30, 300), Color.Red);
-            }
-
-            spriteBatch.Draw(character, characterPosition, Color.White);
-
-            switch (characterSwtich)
-            {
-                case 1:
-                    character = Content.Load<Texture2D>("bubbles");
-                    bullet = Content.Load<Texture2D>("blueslash");
+                case GameState.Menu:
+                    spriteBatch.Draw(Content.Load<Texture2D>("Menu"), new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height), Color.White);
+                    btnPlay.Draw(spriteBatch);
+                    menuMusicInstance.Play();
                     break;
-                case 2:
-                    character = Content.Load<Texture2D>("buttercup");
-                    bullet = Content.Load<Texture2D>("greenslash");
+
+                case GameState.Playing:
+
+                    menuMusicInstance.Stop();
+
+                    myBackground.Draw(spriteBatch);
+                    myBackground2.Draw(spriteBatch);
+
+                    for (int i = 0; i < bulletPosition.Count; i++)
+                    {
+                        Vector2 temp = new Vector2(bulletPosition[i].X, bulletPosition[i].Y);
+                        spriteBatch.Draw(bullet, temp, Color.White);
+                    }
+
+                    for (int i = 0; i < enemyBulletPosition.Count; i++)
+                    {
+                        Vector2 temp = new Vector2(enemyBulletPosition[i].X, enemyBulletPosition[i].Y);
+                        spriteBatch.Draw(enemyBullet, temp, Color.White);
+                    }
+
+
+
+                    if (level == 10)
+                    {
+                        win = true;
+                        endgame = true;
+                        currentState = GameState.Ending;
+                    }
+
+                    spriteBatch.Draw(character, characterPosition, Color.White);
+
+
+                    switch (characterSwtich)
+                    {
+                        case 1:
+                            character = Content.Load<Texture2D>("bubbles");
+                            bullet = Content.Load<Texture2D>("blueslash");
+                            break;
+                        case 2:
+                            character = Content.Load<Texture2D>("buttercup");
+                            bullet = Content.Load<Texture2D>("greenslash");
+                            break;
+                        case 3:
+                            character = Content.Load<Texture2D>("blossom");
+                            bullet = Content.Load<Texture2D>("redslash");
+                            break;
+                    }
+
+                    for (int i = 0; i < totalEnemies; i++)
+                    {
+                        spriteBatch.Draw(enemy, enemyPosition[i], Color.White);
+                    }
+
+                    if (level == 1)
+                    {
+                        enemy = Content.Load<Texture2D>("mojo1");
+                    }
+
+                    if (level == 3)
+                    {
+                        //myBackground = new Scrolling(Content.Load<Texture2D>("background2_1"), new Rectangle(0, 0, 1469, 740));
+                        //myBackground2 = new Scrolling(Content.Load<Texture2D>("background2_1"), new Rectangle(1469, 0, 1469, 740));
+                        enemy = Content.Load<Texture2D>("enemy1");
+                    }
+                    if (level == 6)
+                    {
+                        //myBackground = new Scrolling(Content.Load<Texture2D>("background2_2"), new Rectangle(0, 0, 1437, 740));
+                        //myBackground2 = new Scrolling(Content.Load<Texture2D>("background2_2"), new Rectangle(14, 0, 1437, 740));
+                        enemy = Content.Load<Texture2D>("enemy2");
+                    }
+                    if (level == 9)
+                    {
+                        enemy = Content.Load<Texture2D>("enemy3");
+                    }
+
+                    spriteBatch.DrawString(scoreFont, "SCORE " + score.ToString(), new Vector2(10, 10), Color.Red);
+
+                    spriteBatch.DrawString(levelFont, "LEVEL " + level.ToString(), new Vector2(GraphicsDevice.Viewport.Width - 200, 10), Color.Red);
+
                     break;
-                case 3:
-                    character = Content.Load<Texture2D>("blossom");
-                    bullet = Content.Load<Texture2D>("redslash");
+
+                case GameState.Ending:
+                    gameMusicInstance.Stop();
+                    if (win)
+                    {
+                        spriteBatch.Draw(Content.Load<Texture2D>("win"), new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height), Color.White);
+                        spriteBatch.DrawString(endFont, "You Win", new Vector2(GraphicsDevice.Viewport.Width / 4 + 30, 60), Color.White);
+                        btnPlay.Draw(spriteBatch);
+                    }
+                    else
+                    {
+                        spriteBatch.Draw(Content.Load<Texture2D>("lose"), new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height), Color.White);
+                        spriteBatch.DrawString(endFont, "GAME OVER", new Vector2(GraphicsDevice.Viewport.Width / 4 + 30, 60), Color.White);
+                        btnPlay.Draw(spriteBatch);
+                    }
+
                     break;
             }
 
-            for (int i = 0; i < bulletPosition.Count; i++)
-            {
-                Vector2 temp = new Vector2(bulletPosition[i].X, bulletPosition[i].Y);
-                spriteBatch.Draw(bullet, temp, Color.White);
-            }
-
-            for (int i = 0; i < totalEnemies; i++)
-            {
-                spriteBatch.Draw(enemy, enemyPosition[i], Color.White);
-            }
-
-            if (level == 4)
-            {
-                enemy = Content.Load<Texture2D>("Enemy_character2");
-            }
-            if (level == 7)
-            {
-                enemy = Content.Load<Texture2D>("Enemy_character3");
-            }
-            
             spriteBatch.End();
 
             base.Draw(gameTime);
