@@ -10,7 +10,6 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
 using ScrollingBackgroundSpace;
 
-
 namespace Step8
 {
     /// <summary>
@@ -55,6 +54,8 @@ namespace Step8
 
         SpriteFont scoreFont;
         int score = 0;
+
+        SpriteFont tipsFont;
 
         SpriteFont levelFont;
         int level = 1;
@@ -136,6 +137,8 @@ namespace Step8
             mainframe = new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
 
             scoreFont = Content.Load<SpriteFont>("SpriteFont1");
+            tipsFont = Content.Load<SpriteFont>("SpriteFont1");
+
             levelFont = Content.Load<SpriteFont>("SpriteFont1");
             endFont = Content.Load<SpriteFont>("SpriteFont2");
 
@@ -302,41 +305,41 @@ namespace Step8
 
             if (newState.IsKeyDown(Keys.Up) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Left) && oldState.IsKeyUp(Keys.Right))
             {
-                characterSpeed.Y = -200.0f;
+                characterSpeed.Y = -350.0f;
             }
 
             else if (newState.IsKeyDown(Keys.Down) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Left) && oldState.IsKeyUp(Keys.Right))
             {
-                characterSpeed.Y = 200.0f;
+                characterSpeed.Y = 350.0f;
             }
             else if (newState.IsKeyDown(Keys.Left) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Right))
             {
-                characterSpeed.X = -200.0f;
+                characterSpeed.X = -350.0f;
             }
             else if (newState.IsKeyDown(Keys.Right) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Left) && oldState.IsKeyUp(Keys.Up))
             {
-                characterSpeed.X = 200.0f;
+                characterSpeed.X = 350.0f;
             }
             else if (newState.IsKeyDown(Keys.Down) && newState.IsKeyDown(Keys.Left) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Right))
             {
-                characterSpeed.Y = 120.0f;
-                characterSpeed.X = -120.0f;
+                characterSpeed.Y = 200.0f;
+                characterSpeed.X = -200.0f;
             }
 
             else if (newState.IsKeyDown(Keys.Down) && newState.IsKeyDown(Keys.Right) && oldState.IsKeyUp(Keys.Up) && oldState.IsKeyUp(Keys.Left))
             {
-                characterSpeed.Y = 120.0f;
-                characterSpeed.X = 120.0f;
+                characterSpeed.Y = 200.0f;
+                characterSpeed.X = 200.0f;
             }
             else if (newState.IsKeyDown(Keys.Up) && newState.IsKeyDown(Keys.Left) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Right))
             {
-                characterSpeed.Y = -120.0f;
-                characterSpeed.X = -120.0f;
+                characterSpeed.Y = -200.0f;
+                characterSpeed.X = -200.0f;
             }
             else if (newState.IsKeyDown(Keys.Up) && newState.IsKeyDown(Keys.Right) && oldState.IsKeyUp(Keys.Down) && oldState.IsKeyUp(Keys.Left))
             {
-                characterSpeed.Y = -120.0f;
-                characterSpeed.X = 120.0f;
+                characterSpeed.Y = -200.0f;
+                characterSpeed.X = 200.0f;
             }
             else
             {
@@ -430,38 +433,35 @@ namespace Step8
         {
             int MaxY = graphics.GraphicsDevice.Viewport.Height;
             int MinY = 0;
-            Vector2 enemyShiftX = new Vector2(50.0f, 0.0f);
-            Vector2 enemyReset = new Vector2(GraphicsDevice.Viewport.Width, 0);
+            int MaxX = graphics.GraphicsDevice.Viewport.Width;
+            int MinX = 0;
+
+            Random rand1 = new Random();
+            Vector2 randvec = new Vector2(rand1.Next(3, 5), rand1.Next(3, 5));
+
+            Vector2 enemyShiftY = new Vector2(0.0f, -50.0f);
+
+            Vector2 enemyReset_X = new Vector2(MaxX, MinY);
+            Vector2 enemyReset_Y = new Vector2(MinX, MaxY);
+
             for (int i = 0; i < totalEnemies; i++)
             {
-                if (enemyPosition[i].X < 0)
+                if (enemyPosition[i].X < MinX)
                 {
-                    enemyPosition[i] += enemyReset;
+                    enemyPosition[i] += enemyReset_X;
                 }
-                enemyPosition[i] += enemySpeed[i] * (float)gameTime.ElapsedGameTime.TotalSeconds;
-                if (enemyPosition[i].Y > MaxY - enemyHeight)
+                enemyPosition[i] += enemySpeed[i] * (float)gameTime.ElapsedGameTime.TotalSeconds * randvec;
+
+                if (enemyPosition[i].X < (MaxX - 50 * characterPosition.X))
                 {
-                    for (int j = 0; j < totalEnemies; j++)
+                    if (enemyPosition[i].Y < MinY)
                     {
-                        enemySpeed[j] *= -1;
-                        if (enemyPosition[j].X < characterPosition.X)
-                        {
-                            enemyPosition[j] -= enemyShiftX;
-                        }
+                        enemyPosition[i] += enemyReset_Y;
                     }
-                }
-                else if (enemyPosition[i].Y < MinY)
-                {
-                    for (int j = 0; j < totalEnemies; j++)
-                    {
-                        enemySpeed[j] *= -1;
-                        if (enemyPosition[j].X < characterPosition.X)
-                        {
-                            enemyPosition[j] += enemyShiftX;
-                        }
-                    }
+                    enemyPosition[i] += (float)gameTime.ElapsedGameTime.TotalSeconds * enemyShiftY;
                 }
             }
+
             if (next_enemy_shot > 400 / level)
             {
                 Random rnd = new Random();
@@ -479,7 +479,7 @@ namespace Step8
             firebullet = true;
 
             enemyBulletPosition.Add(new Vector3(enemyPosition.X - enemyWidth / 2 - bulletWidth, enemyPosition.Y + (enemyHeight / 3), 0));
-            enemyBulletSpeed.Add(new Vector3(-250.0f, 0, 0));
+            enemyBulletSpeed.Add(new Vector3(-200.0f * (level/2.0f), 0, 0));
         }
 
 
@@ -493,19 +493,22 @@ namespace Step8
 
             for (int i = 0; i < totalEnemies; i++)
             {
-                enemyBoxes.Add(new BoundingBox(new Vector3(enemyPosition[i].X - (enemyWidth / 2), enemyPosition[i].Y - (enemyHeight / 2), 0), new Vector3(enemyPosition[i].X + (enemyWidth / 2), enemyPosition[i].Y + (enemyHeight / 2), 0)));
+                enemyBoxes.Add(new BoundingBox(new Vector3(enemyPosition[i].X - (enemyWidth / 2), enemyPosition[i].Y - (enemyHeight / 2), 0), 
+                    new Vector3(enemyPosition[i].X + (enemyWidth / 2), enemyPosition[i].Y + (enemyHeight / 2), 0)));
             }
             int userbullets = 0;
             int enemybullets = 0;
             for (int j = 0; j < bulletPosition.Count; j++)
             {
-                bulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
+                bulletBoxes.Add(new BoundingBox(new Vector3(bulletPosition[j].X - (bulletWidth / 2), bulletPosition[j].Y - (bulletHeight / 2), 0), 
+                    new Vector3(bulletPosition[j].X + (bulletWidth / 2), bulletPosition[j].Y + (bulletHeight / 2), 0)));
                 userbullets++;
             }
 
             for (int h = 0; h < enemyBulletPosition.Count; h++)
             {
-                enemybulletBoxes.Add(new BoundingBox(new Vector3(enemyBulletPosition[h].X - (enemyBulletWidth / 2), enemyBulletPosition[h].Y - (enemyBulletHeight / 2), 0), new Vector3(enemyBulletPosition[h].X + (enemyBulletWidth / 2), enemyBulletPosition[h].Y + (enemyBulletHeight / 2), 0)));
+                enemybulletBoxes.Add(new BoundingBox(new Vector3(enemyBulletPosition[h].X - (enemyBulletWidth / 2), enemyBulletPosition[h].Y - (enemyBulletHeight / 2), 0), 
+                    new Vector3(enemyBulletPosition[h].X + (enemyBulletWidth / 2), enemyBulletPosition[h].Y + (enemyBulletHeight / 2), 0)));
                 enemybullets++;
             }
 
@@ -533,14 +536,14 @@ namespace Step8
                             // go to the next level
                             level++;
                             // add more enemies once you beat the level
-                            totalEnemies = 4;
+                            totalEnemies = 6;
 
                             int enemySpacing = graphics.GraphicsDevice.Viewport.Height / totalEnemies;
 
                             for (int k = 0; k < totalEnemies; k++)
                             {
-                                enemyPosition.Add(new Vector2(GraphicsDevice.Viewport.Width, (enemySpacing * (k + 1)) / 2));
-                                enemySpeed.Add(new Vector2(-50.0f * (level / 1.8f), 0));
+                                enemyPosition.Add(new Vector2(GraphicsDevice.Viewport.Width, (enemySpacing * (k))));
+                                enemySpeed.Add(new Vector2(-50.0f * (level / 3.0f), 0));
                             }
                         }
 
@@ -670,13 +673,13 @@ namespace Step8
                         enemy = Content.Load<Texture2D>("mojo1");
                     }
 
-                    if (level == 3)
+                    if (level == 4)
                     {
                         //myBackground = new Scrolling(Content.Load<Texture2D>("background2_1"), new Rectangle(0, 0, 1469, 740));
                         //myBackground2 = new Scrolling(Content.Load<Texture2D>("background2_1"), new Rectangle(1469, 0, 1469, 740));
                         enemy = Content.Load<Texture2D>("enemy1");
                     }
-                    if (level == 6)
+                    if (level == 7)
                     {
                         //myBackground = new Scrolling(Content.Load<Texture2D>("background2_2"), new Rectangle(0, 0, 1437, 740));
                         //myBackground2 = new Scrolling(Content.Load<Texture2D>("background2_2"), new Rectangle(14, 0, 1437, 740));
@@ -688,6 +691,8 @@ namespace Step8
                     }
 
                     spriteBatch.DrawString(scoreFont, "SCORE " + score.ToString(), new Vector2(10, 10), Color.Red);
+
+                    spriteBatch.DrawString(tipsFont, "Press '1', '2', '3' to change Color", new Vector2(GraphicsDevice.Viewport.Width / 4, 10), Color.Yellow);
 
                     spriteBatch.DrawString(levelFont, "LEVEL " + level.ToString(), new Vector2(GraphicsDevice.Viewport.Width - 200, 10), Color.Red);
 
